@@ -1,4 +1,5 @@
 import {
+  addClasses,
   type DrawablyBadgeOptions,
   type DrawablyOptions,
   drawablyArrow,
@@ -18,7 +19,7 @@ import { randomSeed } from "./prng.js";
 // chosen seed reproduces the whole thing, torn down together
 
 function group(el: HTMLElement, cls: string, parts: Sketch[]): Sketch {
-  el.classList.add(cls);
+  const removeClass = addClasses(el, cls);
   return {
     resketch(s?: number) {
       const base = s ?? randomSeed();
@@ -26,7 +27,7 @@ function group(el: HTMLElement, cls: string, parts: Sketch[]): Sketch {
     },
     destroy() {
       for (const p of parts) p.destroy();
-      el.classList.remove(cls);
+      removeClass();
     },
   };
 }
@@ -70,7 +71,7 @@ export function drawablyTabs(el: HTMLElement, opts: DrawablyTabsOptions = {}): T
     line = drawablyUnderline(tab, { ...base, seed });
   };
   setActive(opts.active ?? Math.max(0, tabs.findIndex((t) => t.getAttribute("aria-selected") === "true")));
-  el.classList.add("drawably-tabs");
+  const removeClass = addClasses(el, "drawably-tabs");
   return {
     setActive,
     resketch(s?: number) {
@@ -79,7 +80,7 @@ export function drawablyTabs(el: HTMLElement, opts: DrawablyTabsOptions = {}): T
     },
     destroy() {
       line?.destroy();
-      el.classList.remove("drawably-tabs");
+      removeClass();
     },
   };
 }
@@ -144,8 +145,6 @@ export function drawablyPager(el: HTMLElement, opts: DrawablyPagerOptions = {}):
   const base = seeded(opts, 0);
   let seed = base.seed;
   let current = opts.active ?? Math.max(0, buttons.findIndex((b) => b.hasAttribute("aria-current")));
-  // a button sketch keeps its variant class after destroy; the pager owns the swap
-  const clear = (i: number) => buttons[i].classList.remove("drawably-button--solid", "drawably-button--outline");
   const draw = (i: number) =>
     drawablyButton(buttons[i], { ...base, seed: seed + i, variant: i === current ? "solid" : "outline" });
   const parts = buttons.map((_, i) => draw(i));
@@ -156,7 +155,6 @@ export function drawablyPager(el: HTMLElement, opts: DrawablyPagerOptions = {}):
     current = next;
     for (const i of [prev, next]) {
       parts[i].destroy();
-      clear(i);
       parts[i] = draw(i);
     }
     for (const [i, b] of buttons.entries()) {
@@ -165,7 +163,7 @@ export function drawablyPager(el: HTMLElement, opts: DrawablyPagerOptions = {}):
     }
   };
   buttons.forEach((b, i) => (i === current ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
-  el.classList.add("drawably-pager");
+  const removeClass = addClasses(el, "drawably-pager");
   return {
     setPage,
     resketch(s?: number) {
@@ -174,8 +172,7 @@ export function drawablyPager(el: HTMLElement, opts: DrawablyPagerOptions = {}):
     },
     destroy() {
       for (const p of parts) p.destroy();
-      buttons.forEach((_, i) => clear(i));
-      el.classList.remove("drawably-pager");
+      removeClass();
     },
   };
 }

@@ -70,6 +70,22 @@ describe("drawablyButton", () => {
     expect(el.style.getPropertyValue("--drawably-fill")).toBe("blue");
   });
 
+  it("destroy restores theme properties unless the consumer changed them", () => {
+    const el = document.createElement("button");
+    el.style.setProperty("--drawably-stroke", "green", "important");
+    document.body.append(el);
+    const sketch = drawablyButton(el, { stroke: "red", fill: "blue", paper: "white", width: 3 });
+    el.style.setProperty("--drawably-fill", "purple");
+
+    sketch.destroy();
+
+    expect(el.style.getPropertyValue("--drawably-stroke")).toBe("green");
+    expect(el.style.getPropertyPriority("--drawably-stroke")).toBe("important");
+    expect(el.style.getPropertyValue("--drawably-fill")).toBe("purple");
+    expect(el.style.getPropertyValue("--drawably-paper")).toBe("");
+    expect(el.style.getPropertyValue("--drawably-width")).toBe("");
+  });
+
   it("resketch is deterministic per seed and changes the drawing", () => {
     const { el, sketch } = mountButton({ seed: 1 });
     const d = () => el.querySelector("path")?.getAttribute("d");
@@ -114,11 +130,12 @@ describe("drawablyButton", () => {
     expect(el.dataset.state).toBeUndefined();
   });
 
-  it("destroy removes the svg, classes and listeners", () => {
-    const { el, sketch } = mountButton({ seed: 1 });
+  it("destroy removes the svg, owned classes and listeners", () => {
+    const { el, sketch } = mountButton({ seed: 1, variant: "solid", tone: "danger" });
+    el.classList.add("consumer-class");
     sketch.destroy();
     expect(el.querySelector("svg")).toBeNull();
-    expect(el.classList.contains("drawably-host")).toBe(false);
+    expect(el.className).toBe("consumer-class");
     el.dispatchEvent(new Event("pointerenter"));
     expect(el.querySelector("svg")).toBeNull();
   });
@@ -128,12 +145,28 @@ describe("drawablyCard", () => {
   it("draws a single outline layer and ignores pointer events", () => {
     const el = document.createElement("div");
     document.body.append(el);
-    drawablyCard(el, { seed: 1 });
+    const sketch = drawablyCard(el, { seed: 1 });
     expect(el.querySelectorAll("path")).toHaveLength(3);
     const d1 = el.querySelector("path")?.getAttribute("d");
     el.dispatchEvent(new Event("pointerenter"));
     expect(el.querySelector("path")?.getAttribute("d")).toBe(d1);
+    sketch.destroy();
+    expect(el.className).toBe("");
   });
+});
+
+it.each([
+  ["button", drawablyButton, "drawably-host drawably-button drawably-button--outline"],
+  ["div", drawablyCard, "drawably-host drawably-card"],
+  ["hr", drawablyDivider, "drawably-host drawably-divider"],
+] as const)("preserves pre-existing classes on a %s", (tag, attach, classes) => {
+  const el = document.createElement(tag);
+  el.className = `${classes} consumer`;
+  document.body.append(el);
+  const sketch = attach(el, { seed: 1 });
+  sketch.destroy();
+  expect(el.className).toBe(`${classes} consumer`);
+  expect(el.querySelector("svg")).toBeNull();
 });
 
 import { drawablyCheckbox, drawablyDivider, drawablyInput, drawablyRadio, drawablyToggle } from "../src/controls.js";
@@ -275,9 +308,11 @@ describe("drawablyDivider", () => {
   it("draws a single line layer", () => {
     const el = document.createElement("hr");
     document.body.append(el);
-    drawablyDivider(el, { seed: 1 });
+    const sketch = drawablyDivider(el, { seed: 1 });
     expect(el.classList.contains("drawably-divider")).toBe(true);
     expect(el.querySelectorAll("path.drawably-boil.drawably-outline")).toHaveLength(3);
+    sketch.destroy();
+    expect(el.className).toBe("");
   });
 });
 
@@ -422,6 +457,23 @@ describe("drawablyArrow", () => {
 
 import { drawablyBadge, drawablyList, drawablySelect, drawablyTextarea } from "../src/controls.js";
 
+it.each([
+  ["drawably-checkbox", '<input type="checkbox">', drawablyCheckbox],
+  ["drawably-radio", '<input type="radio">', drawablyRadio],
+  ["drawably-toggle", '<input type="checkbox">', drawablyToggle],
+  ["drawably-badge--scribble", "badge", (el: HTMLElement) => drawablyBadge(el, { variant: "scribble", seed: 1 })],
+  ["drawably-list", "<li>item</li>", drawablyList],
+] as const)("preserves pre-existing %s classes", (cls, html, attach) => {
+  const el = document.createElement(cls === "drawably-list" ? "ul" : "span");
+  el.className = `${cls} consumer`;
+  el.innerHTML = html;
+  document.body.append(el);
+  const sketch = attach(el, { seed: 1 });
+  sketch.destroy();
+  expect(el.className).toBe(`${cls} consumer`);
+  expect(el.querySelector("svg")).toBeNull();
+});
+
 function wrapWith(tag: string) {
   const wrap = document.createElement("span");
   wrap.append(document.createElement(tag));
@@ -563,11 +615,26 @@ describe("drawablySelect sizing and picker", () => {
     })) as unknown as typeof orig;
     try {
       const { select } = mountSelect();
-      drawablySelect(select.parentElement!, { seed: 1 });
+      select.style.setProperty("min-width", "12rem", "important");
+      const sketch = drawablySelect(select.parentElement!, { seed: 1 });
       expect(select.style.minWidth).toBe("42px");
+      sketch.destroy();
+      expect(select.style.minWidth).toBe("12rem");
+      expect(select.style.getPropertyPriority("min-width")).toBe("important");
     } finally {
       HTMLCanvasElement.prototype.getContext = orig;
     }
+  });
+
+  it("keeps min-width changes made by the consumer while attached", () => {
+    const { select } = mountSelect();
+    select.style.minWidth = "12rem";
+    const sketch = drawablySelect(select.parentElement!, { seed: 1 });
+    select.style.minWidth = "20rem";
+
+    sketch.destroy();
+
+    expect(select.style.minWidth).toBe("20rem");
   });
 
   it("puts a sketched frame inside the select for Chromium's picker, removed on destroy", () => {
@@ -580,15 +647,18 @@ describe("drawablySelect sizing and picker", () => {
     expect(select.querySelector("svg")).toBeNull();
   });
 
-  it("hands the picker a seeded check mask for the chosen option, removed on destroy", () => {
+  it("hands the picker a seeded check mask and restores the previous value on destroy", () => {
     const { select } = mountSelect();
+    select.style.setProperty("--drawably-check", "url(previous.svg)", "important");
     const sketch = drawablySelect(select.parentElement!, { seed: 1 });
     const mask = select.style.getPropertyValue("--drawably-check");
     expect(mask).toMatch(/^url\("data:image\/svg\+xml,/);
     const { select: other } = mountSelect();
     drawablySelect(other.parentElement!, { seed: 1 });
     expect(other.style.getPropertyValue("--drawably-check")).toBe(mask);
+    sketch.resketch(2);
     sketch.destroy();
-    expect(select.style.getPropertyValue("--drawably-check")).toBe("");
+    expect(select.style.getPropertyValue("--drawably-check")).toBe("url(previous.svg)");
+    expect(select.style.getPropertyPriority("--drawably-check")).toBe("important");
   });
 });

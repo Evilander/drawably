@@ -49,6 +49,8 @@ drawablyArrow(document.querySelector("#from"), document.querySelector("#to")); /
 
 Each attacher throws if the element is missing. Checkbox/radio/toggle/input/textarea/select throw if the inner field is missing. Arrow throws if either anchor is missing. Returns a sketch: `{ resketch(seed?), destroy() }`. Buttons also have `setState(state)`.
 
+Teardown removes classes added by the sketch, preserving pre-existing classes. Inline theme properties and select sizing/check-mask overrides are restored unless the consumer changed them while attached. Destroy sketches layered on the same element in reverse attachment order.
+
 ## React
 
 Optional peer. Subpath `"drawably/react"`. Client-only (uses `useEffect`).

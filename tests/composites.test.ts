@@ -21,6 +21,25 @@ function mount(html: string) {
 
 const svgs = (el: Element) => el.querySelectorAll("svg.drawably-svg").length;
 
+it.each([
+  ["drawably-chip", '<label><span><input type="checkbox"></span> pen</label>', drawablyChip],
+  ["drawably-tabs", "<div><span>a</span><span>b</span></div>", drawablyTabs],
+  ["drawably-alert", "<div><span data-tag>new</span> hello</div>", drawablyAlert],
+  ["drawably-steps", "<ol><li>item</li></ol>", drawablySteps],
+  ["drawably-kbd", "<kbd>Enter</kbd>", drawablyKbd],
+  ["drawably-quote", "<blockquote><span>less</span><footer>me</footer></blockquote>", drawablyQuote],
+  ["drawably-pager", "<nav><button>1</button><button>2</button></nav>", drawablyPager],
+  ["drawably-tooltip", "<div>tip<button>target</button></div>", (el: HTMLElement) =>
+    drawablyTooltip(el, el.querySelector("button")!, { seed: 1 })],
+] as const)("preserves pre-existing %s classes", (cls, html, attach) => {
+  const el = mount(html);
+  el.className = `${cls} consumer`;
+  const sketch = attach(el, { seed: 1 });
+  sketch.destroy();
+  expect(el.className).toBe(`${cls} consumer`);
+  expect(svgs(document.body)).toBe(0);
+});
+
 describe("drawablyChip", () => {
   it("badges the chip and boxes the checkbox wrapper", () => {
     const el = mount(`<label><span><input type="checkbox" checked /></span> pen</label>`);

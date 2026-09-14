@@ -35,11 +35,46 @@ interface Layer {
 const SVG_NS = "http://www.w3.org/2000/svg";
 const INSET = 3;
 
-function applyTheme(el: HTMLElement | SVGElement, opts: DrawablyOptions) {
-  if (opts.stroke) el.style.setProperty("--drawably-stroke", opts.stroke);
-  if (opts.fill) el.style.setProperty("--drawably-fill", opts.fill);
-  if (opts.paper) el.style.setProperty("--drawably-paper", opts.paper);
-  if (opts.width !== undefined) el.style.setProperty("--drawably-width", String(opts.width));
+export function addClasses(el: HTMLElement, ...classes: string[]): () => void {
+  const added = classes.filter((cls) => !el.classList.contains(cls));
+  el.classList.add(...added);
+  return () => el.classList.remove(...added);
+}
+
+function restoreStyleProperty(
+  el: HTMLElement | SVGElement,
+  name: string,
+  applied: string,
+  previous: string,
+  previousPriority: string,
+): void {
+  if (el.style.getPropertyValue(name) !== applied || el.style.getPropertyPriority(name)) return;
+  if (previous) el.style.setProperty(name, previous, previousPriority);
+  else el.style.removeProperty(name);
+}
+
+function applyTheme(el: HTMLElement | SVGElement, opts: DrawablyOptions): () => void {
+  const properties: Array<[string, string | undefined]> = [
+    ["--drawably-stroke", opts.stroke || undefined],
+    ["--drawably-fill", opts.fill || undefined],
+    ["--drawably-paper", opts.paper || undefined],
+    ["--drawably-width", opts.width === undefined ? undefined : String(opts.width)],
+  ];
+  const applied: Array<{ name: string; value: string; previous: string; previousPriority: string }> = [];
+  for (const [name, value] of properties) {
+    if (value === undefined) continue;
+    applied.push({
+      name,
+      value,
+      previous: el.style.getPropertyValue(name),
+      previousPriority: el.style.getPropertyPriority(name),
+    });
+    el.style.setProperty(name, value);
+  }
+  return () => {
+    for (const property of applied)
+      restoreStyleProperty(el, property.name, property.value, property.previous, property.previousPriority);
+  };
 }
 
 function createSvg(): SVGSVGElement {
@@ -121,8 +156,8 @@ function attachChrome(
   inline = false,
 ): Sketch {
   if (!(el instanceof HTMLElement)) throw new Error("drawably: expected an HTMLElement");
-  el.classList.add("drawably-host");
-  applyTheme(el, opts);
+  const removeHost = addClasses(el, "drawably-host");
+  const restoreTheme = applyTheme(el, opts);
 
   const svg = createSvg();
   el.prepend(svg);
@@ -160,7 +195,19 @@ function attachChrome(
       el.removeEventListener("pointerenter", onPointer);
       el.removeEventListener("pointerdown", onPointer);
       svg.remove();
-      el.classList.remove("drawably-host");
+      removeHost();
+      restoreTheme();
+    },
+  };
+}
+
+function withOwnedClass(el: HTMLElement, className: string, sketch: Sketch): Sketch {
+  const removeClass = addClasses(el, className);
+  return {
+    resketch: sketch.resketch,
+    destroy() {
+      sketch.destroy();
+      removeClass();
     },
   };
 }
@@ -199,8 +246,9 @@ export function drawablyButton(el: HTMLElement, opts: DrawablyButtonOptions = {}
   layers.push({ className: "drawably-outline", gen: outlineRect(8) });
   layers.push({ className: "drawably-focus", gen: focusRect(10) });
   const sketch = attachChrome(el, layers, opts, true);
-  el.classList.add("drawably-button", `drawably-button--${variant}`);
-  if (opts.tone) el.classList.add(`drawably-button--${opts.tone}`);
+  const classes = ["drawably-button", `drawably-button--${variant}`];
+  if (opts.tone) classes.push(`drawably-button--${opts.tone}`);
+  const removeClasses = addClasses(el, ...classes);
   const setState = (state: DrawablyButtonState) => {
     if (state === "idle") delete el.dataset.state;
     else el.dataset.state = state;
@@ -211,15 +259,18 @@ export function drawablyButton(el: HTMLElement, opts: DrawablyButtonOptions = {}
     setState,
     destroy() {
       sketch.destroy();
+      removeClasses();
       delete el.dataset.state;
     },
   };
 }
 
 export function drawablyCard(el: HTMLElement, opts: DrawablyOptions = {}): Sketch {
-  const sketch = attachChrome(el, [{ className: "drawably-outline", gen: outlineRect(10) }], opts, false);
-  el.classList.add("drawably-card");
-  return sketch;
+  return withOwnedClass(
+    el,
+    "drawably-card",
+    attachChrome(el, [{ className: "drawably-outline", gen: outlineRect(10) }], opts, false),
+  );
 }
 
 function syncedControl(
@@ -241,13 +292,13 @@ function syncedControl(
   const target = type === "radio" ? document : input;
   target.addEventListener("change", sync);
   const sketch = attachChrome(el, layers, opts, true);
-  el.classList.add(cls);
+  const removeClass = addClasses(el, cls);
   return {
     resketch: sketch.resketch,
     destroy() {
       target.removeEventListener("change", sync);
       sketch.destroy();
-      el.classList.remove(cls);
+      removeClass();
       delete el.dataset.checked;
     },
   };
@@ -312,14 +363,16 @@ export function drawablyToggle(el: HTMLElement, opts: DrawablyOptions = {}): Ske
 }
 
 export function drawablyDivider(el: HTMLElement, opts: DrawablyOptions = {}): Sketch {
-  const sketch = attachChrome(
+  return withOwnedClass(
     el,
-    [{ className: "drawably-outline", gen: (w, h, o) => roughLine(INSET, h / 2, w - INSET, h / 2, o) }],
-    opts,
-    false,
+    "drawably-divider",
+    attachChrome(
+      el,
+      [{ className: "drawably-outline", gen: (w, h, o) => roughLine(INSET, h / 2, w - INSET, h / 2, o) }],
+      opts,
+      false,
+    ),
   );
-  el.classList.add("drawably-divider");
-  return sketch;
 }
 
 function fieldBox(el: HTMLElement, field: string, cls: string, extra: Layer[], opts: DrawablyOptions): Sketch {
@@ -415,9 +468,18 @@ export function drawablySelect(el: HTMLElement, opts: DrawablyOptions = {}): Ske
   const select = el.querySelector("select")!;
   const roughness = opts.roughness ?? 1;
   const boil = opts.boil ?? 0.3;
+  const previousMinWidth = select.style.getPropertyValue("min-width");
+  const previousMinWidthPriority = select.style.getPropertyPriority("min-width");
   reserveWidestOption(select);
+  const reservedMinWidth = select.style.getPropertyValue("min-width");
   const frame = pickerFrame(select, () => ({ seed, roughness, boil }));
-  const mark = () => select.style.setProperty("--drawably-check", checkMask({ seed, roughness }));
+  const previousCheck = select.style.getPropertyValue("--drawably-check");
+  const previousCheckPriority = select.style.getPropertyPriority("--drawably-check");
+  let appliedCheck = "";
+  const mark = () => {
+    appliedCheck = checkMask({ seed, roughness });
+    select.style.setProperty("--drawably-check", appliedCheck);
+  };
   mark();
   return {
     resketch(s?: number) {
@@ -429,8 +491,8 @@ export function drawablySelect(el: HTMLElement, opts: DrawablyOptions = {}): Ske
     destroy() {
       sketch.destroy();
       frame.destroy();
-      select.style.removeProperty("min-width");
-      select.style.removeProperty("--drawably-check");
+      restoreStyleProperty(select, "min-width", reservedMinWidth, previousMinWidth, previousMinWidthPriority);
+      restoreStyleProperty(select, "--drawably-check", appliedCheck, previousCheck, previousCheckPriority);
     },
   };
 }
@@ -448,15 +510,7 @@ export function drawablyBadge(el: HTMLElement, opts: DrawablyBadgeOptions = {}):
       gen: (w, h, o) => scribbleFill(INSET + 1, INSET + 1, w - 2 * INSET - 2, h - 2 * INSET - 2, o),
     });
   layers.push({ className: "drawably-outline", gen: outlineRect(2) });
-  const sketch = decoration(el, "drawably-badge", layers, opts, false);
-  el.classList.add(`drawably-badge--${variant}`);
-  return {
-    resketch: sketch.resketch,
-    destroy() {
-      sketch.destroy();
-      el.classList.remove(`drawably-badge--${variant}`);
-    },
-  };
+  return withOwnedClass(el, `drawably-badge--${variant}`, decoration(el, "drawably-badge", layers, opts, false));
 }
 
 export interface DrawablyListOptions extends DrawablyOptions {
@@ -490,7 +544,7 @@ export function drawablyList(el: HTMLElement, opts: DrawablyListOptions = {}): S
           };
     return attachChrome(li, [layer], { ...opts, seed: seed + i }, false);
   });
-  el.classList.add("drawably-list");
+  const removeClass = addClasses(el, "drawably-list");
   return {
     resketch(s?: number) {
       const base = s ?? randomSeed();
@@ -498,7 +552,7 @@ export function drawablyList(el: HTMLElement, opts: DrawablyListOptions = {}): S
     },
     destroy() {
       for (const sk of sketches) sk.destroy();
-      el.classList.remove("drawably-list");
+      removeClass();
     },
   };
 }
@@ -510,15 +564,7 @@ function decoration(
   opts: DrawablyOptions,
   interactive: boolean,
 ): Sketch {
-  const sketch = attachChrome(el, layers, opts, interactive, true);
-  el.classList.add(cls);
-  return {
-    resketch: sketch.resketch,
-    destroy() {
-      sketch.destroy();
-      el.classList.remove(cls);
-    },
-  };
+  return withOwnedClass(el, cls, attachChrome(el, layers, opts, interactive, true));
 }
 
 // underline sits just under the text box; circle overshoots it the way a hand

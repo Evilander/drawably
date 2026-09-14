@@ -67,6 +67,26 @@ it("DrawablyButton survives a className change without losing its drawably class
   expect(button?.querySelector("svg")).toBeTruthy();
 });
 
+it("DrawablyButton replaces variant, tone and theme props without stale styling", () => {
+  act(() => root.render(<DrawablyButton seed={1} variant="solid" tone="danger" stroke="red">Done</DrawablyButton>));
+  act(() => root.render(<DrawablyButton seed={1} variant="outline">Done</DrawablyButton>));
+  const button = host.querySelector("button")!;
+  expect(button.classList.contains("drawably-button--outline")).toBe(true);
+  expect(button.classList.contains("drawably-button--solid")).toBe(false);
+  expect(button.classList.contains("drawably-button--danger")).toBe(false);
+  expect(button.style.getPropertyValue("--drawably-stroke")).toBe("");
+  expect(button.querySelectorAll("svg.drawably-svg")).toHaveLength(1);
+});
+
+it("preserves consumer className tokens supplied during sketch cleanup", () => {
+  act(() => root.render(<DrawablyButton seed={1} variant="solid">Done</DrawablyButton>));
+  act(() => root.render(<DrawablyButton seed={1} variant="outline" className="drawably-button--solid consumer">Done</DrawablyButton>));
+  const button = host.querySelector("button")!;
+  expect(button.classList.contains("drawably-button--solid")).toBe(true);
+  expect(button.classList.contains("consumer")).toBe(true);
+  expect(button.querySelectorAll("svg.drawably-svg")).toHaveLength(1);
+});
+
 it("inline decorations render a span with the sketch", () => {
   act(() =>
     root.render(

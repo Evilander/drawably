@@ -45,13 +45,21 @@ import {
   type TabsSketch,
 } from "./composites.js";
 
+function restoreClassName(el: HTMLElement, className?: string) {
+  const classes = className?.match(/\S+/g);
+  if (classes) el.classList.add(...classes);
+}
+
 function useSketch<T extends HTMLElement>(
   attach: (el: T) => Sketch,
   deps: readonly unknown[],
+  className?: string,
 ) {
   const ref = useRef<T>(null);
   useEffect(() => {
     if (!ref.current) return;
+    // React applies the new className before the previous sketch's cleanup.
+    restoreClassName(ref.current, className);
     const sketch = attach(ref.current);
     return () => sketch.destroy();
   }, deps);
@@ -65,6 +73,7 @@ export function DrawablyButton({ seed, roughness, boil, stroke, fill, paper, wid
   const ref = useSketch<HTMLButtonElement>(
     (el) => (sketchRef.current = drawablyButton(el, { seed, roughness, boil, stroke, fill, paper, width, variant, state, tone })),
     [seed, roughness, boil, stroke, fill, paper, width, variant, tone, className],
+    className,
   );
   useEffect(() => {
     sketchRef.current?.setState(state ?? "idle");
@@ -78,6 +87,7 @@ export function DrawablyCheckbox({ seed, roughness, boil, stroke, fill, paper, w
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablyCheckbox(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("span", { className, ref }, createElement("input", { ...rest, type: "checkbox" }));
 }
@@ -88,6 +98,7 @@ export function DrawablyInput({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablyInput(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("span", { className, ref }, createElement("input", rest));
 }
@@ -96,6 +107,7 @@ export function DrawablyRadio({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablyRadio(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("span", { className, ref }, createElement("input", { ...rest, type: "radio" }));
 }
@@ -104,6 +116,7 @@ export function DrawablyToggle({ seed, roughness, boil, stroke, fill, paper, wid
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablyToggle(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("span", { className, ref }, createElement("input", { ...rest, type: "checkbox", role: "switch" }));
 }
@@ -114,6 +127,7 @@ export function DrawablyDivider({ seed, roughness, boil, stroke, fill, paper, wi
   const ref = useSketch<HTMLHRElement>(
     (el) => drawablyDivider(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("hr", { ...rest, className, ref });
 }
@@ -124,6 +138,7 @@ export function DrawablyCard({ seed, roughness, boil, stroke, fill, paper, width
   const ref = useSketch<HTMLDivElement>(
     (el) => drawablyCard(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("div", { ...rest, className, ref }, children);
 }
@@ -135,6 +150,7 @@ function decoration(attach: (el: HTMLSpanElement, opts: DrawablyOptions) => Sket
     const ref = useSketch<HTMLSpanElement>(
       (el) => attach(el, { seed, roughness, boil, stroke, fill, paper, width }),
       [seed, roughness, boil, stroke, fill, paper, width, className],
+      className,
     );
     return createElement("span", { ...rest, className, ref }, children);
   };
@@ -164,6 +180,7 @@ export function DrawablyTextarea({ seed, roughness, boil, stroke, fill, paper, w
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablyTextarea(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("span", { className, ref }, createElement("textarea", rest));
 }
@@ -174,6 +191,7 @@ export function DrawablySelect({ seed, roughness, boil, stroke, fill, paper, wid
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablySelect(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("span", { className, ref }, createElement("select", rest, children));
 }
@@ -184,6 +202,7 @@ export function DrawablyBadge({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLSpanElement>(
     (el) => drawablyBadge(el, { seed, roughness, boil, stroke, fill, paper, width, variant }),
     [seed, roughness, boil, stroke, fill, paper, width, variant, className],
+    className,
   );
   return createElement("span", { ...rest, className, ref }, children);
 }
@@ -194,6 +213,7 @@ export function DrawablyList({ seed, roughness, boil, stroke, fill, paper, width
   const ref = useSketch<HTMLUListElement>(
     (el) => drawablyList(el, { seed, roughness, boil, stroke, fill, paper, width, marker }),
     [seed, roughness, boil, stroke, fill, paper, width, marker, className],
+    className,
   );
   return createElement("ul", { ...rest, className, ref }, children);
 }
@@ -206,6 +226,7 @@ export function DrawablyChip({ seed, roughness, boil, stroke, fill, paper, width
   const ref = useSketch<HTMLLabelElement>(
     (el) => drawablyChip(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement(
     "label",
@@ -222,6 +243,7 @@ export function DrawablyTabs({ seed, roughness, boil, stroke, fill, paper, width
   const ref = useSketch<HTMLDivElement>(
     (el) => (sketchRef.current = drawablyTabs(el, { seed, roughness, boil, stroke, fill, paper, width, active })),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   useEffect(() => {
     if (active !== undefined) sketchRef.current?.setActive(active);
@@ -235,6 +257,7 @@ export function DrawablyTooltip({ to, seed, roughness, boil, stroke, fill, paper
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!ref.current || !to.current) return;
+    restoreClassName(ref.current, className);
     const sketch = drawablyTooltip(ref.current, to.current, { seed, roughness, boil, stroke, fill, paper, width });
     return () => sketch.destroy();
   }, [to, seed, roughness, boil, stroke, fill, paper, width, className]);
@@ -245,6 +268,7 @@ export function DrawablyAlert({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLDivElement>(
     (el) => drawablyAlert(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("div", { role: "status", ...rest, className, ref }, children);
 }
@@ -255,6 +279,7 @@ export function DrawablySteps({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLOListElement>(
     (el) => drawablySteps(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("ol", { ...rest, className, ref }, children);
 }
@@ -265,6 +290,7 @@ export function DrawablyKbd({ seed, roughness, boil, stroke, fill, paper, width,
   const ref = useSketch<HTMLElement>(
     (el) => drawablyKbd(el, { seed, roughness, boil, stroke, fill, paper, width, variant }),
     [seed, roughness, boil, stroke, fill, paper, width, variant, className],
+    className,
   );
   return createElement("kbd", { ...rest, className, ref }, children);
 }
@@ -275,6 +301,7 @@ export function DrawablyQuote({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLQuoteElement>(
     (el) => drawablyQuote(el, { seed, roughness, boil, stroke, fill, paper, width }),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   return createElement("blockquote", { ...rest, className, ref }, children);
 }
@@ -286,6 +313,7 @@ export function DrawablyPager({ seed, roughness, boil, stroke, fill, paper, widt
   const ref = useSketch<HTMLElement>(
     (el) => (sketchRef.current = drawablyPager(el, { seed, roughness, boil, stroke, fill, paper, width, active })),
     [seed, roughness, boil, stroke, fill, paper, width, className],
+    className,
   );
   useEffect(() => {
     if (active !== undefined) sketchRef.current?.setPage(active);

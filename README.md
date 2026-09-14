@@ -40,6 +40,12 @@ sketch.resketch(42);   // redraw with a specific seed
 sketch.destroy();      // remove the SVG and all listeners
 ```
 
+Teardown also removes the classes the sketch added,
+preserving any that were already present. Inline theme properties and select
+sizing/check-mask overrides return to their previous values unless you changed
+them while attached. When layering sketches on the same element, destroy them
+in reverse attachment order.
+
 ## Buttons
 
 Three variants: `outline` (default), `solid`, `scribble`. Buttons also carry a
